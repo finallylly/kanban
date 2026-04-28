@@ -147,4 +147,54 @@ describe("task command", () => {
 			taskId: "task-1",
 		});
 	});
+
+	it("trims one trailing newline from stdin input", async () => {
+		const originalIsTty = process.stdin.isTTY;
+		const originalAsyncIterator = process.stdin[Symbol.asyncIterator];
+		Object.defineProperty(process.stdin, "isTTY", {
+			configurable: true,
+			value: false,
+		});
+		process.stdin[Symbol.asyncIterator] = async function* () {
+			yield Buffer.from("Continue\n");
+		};
+
+		try {
+			await createProgram().parseAsync(["task", "send", "--task-id", "task-1", "--project-path", "/repo"], {
+				from: "user",
+			});
+		} finally {
+			Object.defineProperty(process.stdin, "isTTY", {
+				configurable: true,
+				value: originalIsTty,
+			});
+			process.stdin[Symbol.asyncIterator] = originalAsyncIterator;
+		}
+
+		expect(sendTaskSessionInput).toHaveBeenNthCalledWith(1, {
+			appendNewline: false,
+			taskId: "task-1",
+			text: "Continue",
+		});
+		expect(sendTaskSessionInput).toHaveBeenNthCalledWith(2, {
+			appendNewline: false,
+			taskId: "task-1",
+			text: "\r",
+		});
+	});
+
+	it("rejects an empty text option", async () => {
+		await createProgram().parseAsync(
+			["task", "send", "--task-id", "task-1", "--text", "", "--project-path", "/repo"],
+			{ from: "user" },
+		);
+
+		expect(sendTaskSessionInput).not.toHaveBeenCalled();
+		expect(JSON.parse(stdout)).toMatchObject({
+			ok: false,
+			error: expect.stringContaining("--text value cannot be empty"),
+		});
+		expect(process.exitCode).toBe(1);
+		process.exitCode = undefined;
+	});
 });

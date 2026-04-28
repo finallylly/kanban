@@ -675,11 +675,16 @@ async function readStdinText(): Promise<string> {
 	for await (const chunk of process.stdin) {
 		chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 	}
-	return Buffer.concat(chunks).toString("utf8");
+	return Buffer.concat(chunks)
+		.toString("utf8")
+		.replace(/\r?\n$/, "");
 }
 
 async function resolveSendTaskText(text: string | undefined): Promise<string> {
-	if (text !== undefined && text.length > 0) {
+	if (text !== undefined) {
+		if (text.length === 0) {
+			throw new Error("--text value cannot be empty. Omit the flag to read from stdin.");
+		}
 		return text;
 	}
 	const stdinText = await readStdinText();
